@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perpres IR — Hybrid Retrieval &amp; QDA Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    :root {
+      --background: #fafafa;
+      --foreground: #09090b;
+      --card: #ffffff;
+      --muted: #f4f4f5;
+      --muted-foreground: #71717a;
+      --border: #e4e4e7;
+      --primary: #18181b;
+      --primary-foreground: #fafafa;
+    }
+
+    body {
+      background-color: var(--background);
+      color: var(--foreground);
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .shadcn-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 2px rgba(9, 9, 11, 0.04);
+    }
+
+    .result-card {
+      opacity: 1;
+      translate: 0 0;
+      transition:
+        opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+        translate 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
+    }
+
+    @starting-style {
+      .result-card {
+        opacity: 0;
+        translate: 0 10px;
+      }
+    }
+
+    .result-card:hover {
+      border-color: #a1a1aa;
+      box-shadow: 0 4px 12px rgba(9, 9, 11, 0.06);
+    }
+
+    .spinner {
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 9999px;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .spinner {
+        animation: spin 0.7s linear infinite;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .result-card {
+        translate: none;
+        transition-duration: 0.1s;
+      }
+      @starting-style {
+        .result-card {
+          translate: none;
+        }
+      }
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="sticky top-0 z-20 border-b border-zinc-200 bg-white/90 backdrop-blur-sm">
+    <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
+      <div class="flex items-center gap-3">
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 text-xs font-semibold text-white">
+          IR
+        </div>
+        <div>
+          <h1 class="text-sm font-semibold tracking-tight text-zinc-900">Perpres Search</h1>
+          <p class="text-xs text-zinc-500">BM25 + Multilingual-E5 + RRF + QDA</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <div id="status-pill" class="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600">
+          <span id="status-dot" class="h-2 w-2 rounded-full bg-amber-400"></span>
+          <span id="status-text">Checking engine...</span>
+        </div>
+        <a href="/docs" target="_blank" rel="noopener"
+           class="inline-flex items-center rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100">
+          API Docs
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
+    <!-- Search Panel -->
+    <section class="shadcn-card p-5 sm:p-6">
+      <div class="mb-4">
+        <h2 class="text-base font-semibold tracking-tight text-zinc-900">Cari Ketentuan Peraturan Presiden</h2>
+        <p class="mt-0.5 text-sm text-zinc-500">
+          Masukkan query istilah hukum (literal) atau bahasa sehari-hari (semantik) untuk menelusuri 1.509 segmen ayat.
+        </p>
+      </div>
+
+      <form id="search-form" class="space-y-4">
+        <div class="flex flex-col gap-2.5 sm:flex-row">
+          <div class="relative flex-1">
+            <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              id="query-input"
+              type="text"
+              required
+              autocomplete="off"
+              placeholder="Contoh: pelatihan diselenggarakan secara daring dan luring"
+              class="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-10 pr-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+            />
+          </div>
+          <button
+            id="search-btn"
+            type="submit"
+            class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-zinc-900 px-5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span id="btn-spinner" class="spinner hidden"></span>
+            <span id="btn-label">Search</span>
+          </button>
+        </div>
+
+        <!-- Controls Row -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <!-- Segmented Mode Toggle -->
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-medium text-zinc-500">Mode:</span>
+            <div class="inline-flex rounded-lg border border-zinc-200 bg-zinc-100 p-0.5" role="group" aria-label="Search Mode">
+              <button type="button" data-mode="hybrid_qda"
+                      class="mode-btn rounded-md bg-white px-3 py-1 text-xs font-medium text-zinc-900 shadow-sm transition-colors">
+                RRF + QDA
+              </button>
+              <button type="button" data-mode="rrf"
+                      class="mode-btn rounded-md px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:text-zinc-900">
+                Stage 1 RRF
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label for="topk-select" class="text-xs font-medium text-zinc-500">Top-K:</label>
+            <select id="topk-select"
+                    class="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-800 focus:border-zinc-900 focus:outline-none">
+              <option value="5">5 hasil</option>
+              <option value="10" selected>10 hasil</option>
+              <option value="20">20 hasil</option>
+            </select>
+          </div>
+        </div>
+      </form>
+
+      <!-- Sample Queries -->
+      <div class="mt-4 flex flex-wrap items-center gap-1.5 border-t border-zinc-100 pt-3.5">
+        <span class="mr-1 text-xs text-zinc-400">Contoh:</span>
+        <button type="button" class="sample-btn rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-900">
+          pelatihan diselenggarakan secara daring dan luring
+        </button>
+        <button type="button" class="sample-btn rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-900">
+          bantuan biaya pelatihan untuk pencari kerja
+        </button>
+        <button type="button" class="sample-btn rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-900">
+          program kartu prakerja
+        </button>
+      </div>
+    </section>
+
+    <!-- Metrics Summary Bar -->
+    <section id="stats-bar" class="mt-5 hidden grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="shadcn-card px-4 py-3">
+        <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Pipeline Mode</p>
+        <p id="stat-mode" class="mt-1 font-mono text-sm font-semibold text-zinc-900">-</p>
+      </div>
+      <div class="shadcn-card px-4 py-3">
+        <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Results</p>
+        <p id="stat-count" class="mt-1 font-mono text-sm font-semibold text-zinc-900">-</p>
+      </div>
+      <div class="shadcn-card px-4 py-3">
+        <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Query Latency</p>
+        <p id="stat-latency" class="mt-1 font-mono text-sm font-semibold text-zinc-900">-</p>
+      </div>
+      <div class="shadcn-card px-4 py-3">
+        <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400">QDA Alpha</p>
+        <p id="stat-alpha" class="mt-1 font-mono text-sm font-semibold text-zinc-900">-</p>
+      </div>
+    </section>
+
+    <!-- Error Alert -->
+    <div id="error-box" class="mt-5 hidden rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"></div>
+
+    <!-- Skeleton Loader -->
+    <div id="skeleton-list" class="mt-5 hidden space-y-3">
+      <div class="shadcn-card p-5 animate-pulse">
+        <div class="h-4 w-48 rounded bg-zinc-200"></div>
+        <div class="mt-3 h-3 w-full rounded bg-zinc-100"></div>
+        <div class="mt-2 h-3 w-4/5 rounded bg-zinc-100"></div>
+      </div>
+      <div class="shadcn-card p-5 animate-pulse">
+        <div class="h-4 w-40 rounded bg-zinc-200"></div>
+        <div class="mt-3 h-3 w-full rounded bg-zinc-100"></div>
+        <div class="mt-2 h-3 w-3/4 rounded bg-zinc-100"></div>
+      </div>
+    </div>
+
+    <!-- Results List -->
+    <section id="results-list" class="mt-5 space-y-3"></section>
+  </main>
+
+  <script>
+    let currentMode = 'hybrid_qda';
+
+    const form = document.getElementById('search-form');
+    const queryInput = document.getElementById('query-input');
+    const topkSelect = document.getElementById('topk-select');
+    const searchBtn = document.getElementById('search-btn');
+    const btnSpinner = document.getElementById('btn-spinner');
+    const btnLabel = document.getElementById('btn-label');
+    const statsBar = document.getElementById('stats-bar');
+    const skeletonList = document.getElementById('skeleton-list');
+    const resultsList = document.getElementById('results-list');
+    const errorBox = document.getElementById('error-box');
+
+    async function checkHealth() {
+      const dot = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      try {
+        const res = await fetch('/health');
+        if (!res.ok) throw new Error('Health check failed');
+        const data = await res.json();
+        dot.className = data.qda_loaded
+          ? 'h-2 w-2 rounded-full bg-emerald-500'
+          : 'h-2 w-2 rounded-full bg-amber-500';
+        text.textContent = data.qda_loaded
+          ? `Ready · ${data.num_documents} ayat · ${data.device.toUpperCase()}`
+          : `RRF Only · ${data.num_documents} ayat`;
+      } catch {
+        dot.className = 'h-2 w-2 rounded-full bg-red-500';
+        text.textContent = 'Engine offline';
+      }
+    }
+
+    document.querySelectorAll('.mode-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        currentMode = btn.dataset.mode;
+        document.querySelectorAll('.mode-btn').forEach((b) => {
+          const active = b.dataset.mode === currentMode;
+          b.className = active
+            ? 'mode-btn rounded-md bg-white px-3 py-1 text-xs font-medium text-zinc-900 shadow-sm transition-colors'
+            : 'mode-btn rounded-md px-3 py-1 text-xs font-medium text-zinc-600 transition-colors hover:text-zinc-900';
+        });
+        if (queryInput.value.trim()) runSearch();
+      });
+    });
+
+    document.querySelectorAll('.sample-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        queryInput.value = btn.textContent.trim();
+        runSearch();
+      });
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      runSearch();
+    });
+
+    async function runSearch() {
+      const q = queryInput.value.trim();
+      if (!q) return;
+
+      errorBox.classList.add('hidden');
+      resultsList.innerHTML = '';
+      skeletonList.classList.remove('hidden');
+      searchBtn.disabled = true;
+      btnSpinner.classList.remove('hidden');
+      btnLabel.textContent = 'Searching...';
+
+      try {
+        const res = await fetch('/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: q,
+            top_k: Number(topkSelect.value),
+            mode: currentMode,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        renderResults(data);
+      } catch (err) {
+        errorBox.textContent = `Gagal melakukan pencarian: ${err.message}`;
+        errorBox.classList.remove('hidden');
+      } finally {
+        skeletonList.classList.add('hidden');
+        searchBtn.disabled = false;
+        btnSpinner.classList.add('hidden');
+        btnLabel.textContent = 'Search';
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+    }
+
+    function renderResults(data) {
+      statsBar.classList.remove('hidden');
+      statsBar.classList.add('grid');
+      document.getElementById('stat-mode').textContent =
+        data.mode === 'hybrid_qda' ? 'RRF + QDA' : data.mode.toUpperCase();
+      document.getElementById('stat-count').textContent = `${data.results.length} segmen`;
+      document.getElementById('stat-latency').textContent = `${data.latency_ms} ms`;
+      document.getElementById('stat-alpha').textContent = Number(data.rerank_alpha).toFixed(2);
+
+      if (!data.results.length) {
+        resultsList.innerHTML =
+          '<div class="shadcn-card p-6 text-center text-sm text-zinc-500">Tidak ada segmen yang cocok.</div>';
+        return;
+      }
+
+      data.results.forEach((item, idx) => {
+        const card = document.createElement('article');
+        card.className = 'shadcn-card result-card p-5';
+        card.style.transitionDelay = `${Math.min(idx * 35, 240)}ms`;
+
+        card.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-zinc-900 px-2 font-mono text-xs font-semibold text-white">
+                #${item.rank}
+              </span>
+              <span class="text-sm font-semibold text-zinc-900">Perpres ${escapeHtml(item.nomor_peraturan)}</span>
+              <span class="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs font-medium text-zinc-700">
+                ${escapeHtml(item.sub_segmen)}
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-xs text-zinc-500">${escapeHtml(item.doc_id)}</span>
+              <span class="rounded-full bg-zinc-100 px-2.5 py-0.5 font-mono text-xs font-medium text-zinc-800">
+                score: ${Number(item.score).toFixed(4)}
+              </span>
+              <button type="button" class="copy-btn rounded-md border border-zinc-200 px-2 py-0.5 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
+                Copy
+              </button>
+            </div>
+          </div>
+          <p class="mt-3 text-sm leading-relaxed text-zinc-700">${escapeHtml(item.text)}</p>
+        `;
+
+        const copyBtn = card.querySelector('.copy-btn');
+        copyBtn.addEventListener('click', async () => {
+          await navigator.clipboard.writeText(
+            `Perpres ${item.nomor_peraturan} (${item.sub_segmen}): ${item.text}`
+          );
+          copyBtn.textContent = 'Copied';
+          setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1200);
+        });
+
+        resultsList.appendChild(card);
+      });
+    }
+
+    checkHealth();
+  </script>
+</body>
+</html>

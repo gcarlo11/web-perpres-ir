@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+models/
+# Generated locally (~285 MB, exceeds GitHub 100 MB limit); auto-built on first run or via setup_local.py
+artifacts/doc_artifacts.pt

@@ -1,0 +1,15 @@
+{
+  "seed": 42,
+  "model_name": "intfloat/multilingual-e5-small",
+  "top_k_each": 25,
+  "rrf_k": 60,
+  "max_q_len": 64,
+  "max_d_len": 256,
+  "lr": 0.0001,
+  "weight_decay": 0.01,
+  "dropout": 0.2,
+  "train_batch_size": 8,
+  "qda_params": 1774849,
+  "rerank_alpha": 0.05,
+  "best_epoch": 3
+}
